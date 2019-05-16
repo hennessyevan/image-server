@@ -50,7 +50,7 @@ const (
 )
 
 var (
-	flagHTTP            = ":80"
+	flagHTTP            = "5000"
 	flagMaxUploadSize   = int64(6 * (1 << 25))
 	flagUploadPath      = "/tmp"
 	flagGroupcache      = int64(128 * (1 << 20))
@@ -77,7 +77,14 @@ func startHTTPServer() {
 	http.Handle("/favicon.ico", http.NotFoundHandler())
 	initGroupcacheHTTPPool() // it automatically registers itself to "/_groupcache"
 	http.HandleFunc("/stats", groupcacheStatsHTTPHandler)
-	err := http.ListenAndServe(flagHTTP, nil)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = flagHTTP
+	}
+
+	fmt.Printf("Listening on port %s\n\n", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
 	}
