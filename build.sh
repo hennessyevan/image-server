@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 go get -d ./...
-go build -o bin/application application.go
+GOOS=linux GOARCH=amd64 go build -o bin/application -ldflags="-s -w"
