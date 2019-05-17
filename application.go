@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
+
 	webp "github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 
@@ -59,7 +61,7 @@ var (
 	flagCache           = int64(128 * (1 << 20))
 	flagGroupcache      = int64(128 * (1 << 20))
 	flagGroupcachePeers string
-	flagFile            = "cache"
+	flagFile            = ".cache"
 )
 
 func main() {
@@ -143,8 +145,37 @@ func randToken(len int) string {
 	return fmt.Sprintf("%x", b)
 }
 
+func verifyToken(tokenString string) bool {
+	os.Setenv("APP_SECRET", "my_secret_key")
+	secret := []byte(os.Getenv("APP_SECRET"))
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return secret, nil
+	})
+
+	if err != nil {
+		return false
+	}
+
+	if token.Valid {
+		return true
+	}
+	return false
+
+}
+
 func uploadFileHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := r.Cookie("PC_CDN_TOKEN")
+		if err != nil {
+			renderError(w, "NO TOKEN", http.StatusForbidden)
+			return
+		}
+
+		if ok := verifyToken(token.Value); !ok {
+			renderError(w, "FORBIDDEN", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != "POST" {
 			renderError(w, "INVALID REQUEST", http.StatusMethodNotAllowed)
 			return
