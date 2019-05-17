@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	webp "github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
@@ -31,7 +32,9 @@ import (
 	"github.com/golang/groupcache"
 	"github.com/pierrre/imageserver"
 	imageserver_cache "github.com/pierrre/imageserver/cache"
+	imageserver_cache_file "github.com/pierrre/imageserver/cache/file"
 	imageserver_cache_groupcache "github.com/pierrre/imageserver/cache/groupcache"
+	imageserver_cache_memory "github.com/pierrre/imageserver/cache/memory"
 	imageserver_http "github.com/pierrre/imageserver/http"
 	imageserver_http_gift "github.com/pierrre/imageserver/http/gift"
 	imageserver_http_image "github.com/pierrre/imageserver/http/image"
@@ -53,8 +56,10 @@ var (
 	flagHTTP            = "5000"
 	flagMaxUploadSize   = int64(6 * (1 << 25))
 	flagUploadPath      = "/tmp"
+	flagCache           = int64(128 * (1 << 20))
 	flagGroupcache      = int64(128 * (1 << 20))
 	flagGroupcachePeers string
+	flagFile            = "cache"
 )
 
 func main() {
@@ -68,6 +73,7 @@ func parseFlags() {
 	flag.Int64Var(&flagMaxUploadSize, "maxUploadSize", flagMaxUploadSize, "MaxUploadSize")
 	flag.Int64Var(&flagGroupcache, "groupcache", flagGroupcache, "Groupcache")
 	flag.StringVar(&flagGroupcachePeers, "groupcache-peers", flagGroupcachePeers, "Groupcache peers")
+	flag.StringVar(&flagFile, "file", flagFile, "File")
 	flag.Parse()
 }
 
@@ -90,6 +96,15 @@ func startHTTPServer() {
 	}
 }
 
+func CreateDirIfNotExist(dir string) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 func newImageHTTPHandler() http.Handler {
 	var handler http.Handler = &imageserver_http.Handler{
 		Parser: imageserver_http.ListParser([]imageserver_http.Parser{
@@ -99,6 +114,15 @@ func newImageHTTPHandler() http.Handler {
 			&imageserver_http_image.QualityParser{},
 		}),
 		Server: newServer(),
+	}
+
+	handler = &imageserver_http.ExpiresHandler{
+		Handler: handler,
+		Expires: 7 * 24 * time.Hour,
+	}
+
+	handler = &imageserver_http.CacheControlPublicHandler{
+		Handler: handler,
 	}
 
 	handler = &imageserver_http_cors.CorsHandler{
@@ -236,17 +260,9 @@ func uploadFileHandler() http.HandlerFunc {
 
 func newServer() imageserver.Server {
 	srv := newServerImage()
-	srv = newServerGroupcache(srv)
+	srv = newServerLimit(srv)
+	srv = newServerFile(srv)
 	return srv
-}
-
-func CreateDirIfNotExist(dir string) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			panic(err)
-		}
-	}
 }
 
 func newServerImage() imageserver.Server {
@@ -270,6 +286,10 @@ func newServerGroupcache(srv imageserver.Server) imageserver.Server {
 		groupcacheName,
 		flagGroupcache,
 	)
+}
+
+func newServerLimit(srv imageserver.Server) imageserver.Server {
+	return imageserver.NewLimitServer(srv, runtime.GOMAXPROCS(0)*2)
 }
 
 func initGroupcacheHTTPPool() {
@@ -319,4 +339,31 @@ func groupcacheStatsHTTPHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	_, _ = w.Write(data)
+}
+
+func newServerCacheMemory(srv imageserver.Server) imageserver.Server {
+	if flagCache <= 0 {
+		return srv
+	}
+	return &imageserver_cache.Server{
+		Server:       srv,
+		Cache:        imageserver_cache_memory.New(flagCache),
+		KeyGenerator: imageserver_cache.NewParamsHashKeyGenerator(sha256.New),
+	}
+}
+
+func newServerFile(srv imageserver.Server) imageserver.Server {
+	if flagFile == "" {
+		return srv
+	}
+
+	CreateDirIfNotExist(flagFile)
+
+	cch := imageserver_cache_file.Cache{Path: flagFile}
+	kg := imageserver_cache.NewParamsHashKeyGenerator(sha256.New)
+	return &imageserver_cache.Server{
+		Server:       srv,
+		Cache:        &cch,
+		KeyGenerator: kg,
+	}
 }
