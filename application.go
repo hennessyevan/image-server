@@ -22,7 +22,7 @@ import (
 	webp "github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 
-	imageserver_source_http "server"
+	imageserver_source_http "github.com/hennessyevan/image-server/server"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -41,7 +41,7 @@ import (
 	_ "github.com/pierrre/imageserver/image/jpeg"
 	_ "github.com/pierrre/imageserver/image/png"
 
-	imageserver_http_cors "cors"
+	imageserver_http_cors "github.com/hennessyevan/image-server/cors"
 )
 
 const (
