@@ -38,7 +38,7 @@ cd $APP_BUILD_DIR
 dep ensure
 
 # Build the binary with jsoniter tag.
-go build -o application -tags=jsoniter .
+go build -o application main.go -tags=jsoniter .
 
 # Modify permissons to make the binary executable.
 chmod +x application
