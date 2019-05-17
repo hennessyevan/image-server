@@ -7,7 +7,7 @@
 # $GOPATH isn't set by default, nor do we have a usable Go workspace :'(
 GOPATH="/var/app/current"
 APP_BUILD_DIR="$GOPATH/src/image-server"     # We will build the app here
-APP_STAGING_DIR="/var/app/staging"            # Current directory
+APP_STAGING_DIR=$(pwd)            # Current directory
 DEP_VERSION="v0.3.2"                          # Use specific version for stability
 ENV_VAR_PREFIX="IMAGE_SERVER_"
 
@@ -38,7 +38,7 @@ cd $APP_BUILD_DIR
 dep ensure
 
 # Build the binary with jsoniter tag.
-go build -o application main.go -tags=jsoniter .
+go build -o application -tags=jsoniter .
 
 # Modify permissons to make the binary executable.
 chmod +x application
